@@ -1,2 +1,2 @@
-# Learn_Pythorch
+# Learn_Pytorch
 learn pytorch
