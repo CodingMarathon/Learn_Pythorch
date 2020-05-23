@@ -1,6 +1,5 @@
 import random
 import re
-import string
 import unicodedata
 
 import torch
@@ -17,13 +16,14 @@ class Lang(object):
         self.word2index = {}
         self.word2count = {}
         self.index2word = {0: "SOS", 1: "EOS"}
-        self.n_words = 2  # Count SOS and EOS
+        # Count SOS and EOS
+        self.n_words = 2
 
-    def addSentence(self, sentence):
+    def add_sentence(self, sentence):
         for word in sentence.split(' '):
-            self.addWord(word)
+            self.add_word(word)
 
-    def addWord(self, word):
+    def add_word(self, word):
         if word not in self.word2index:
             self.word2index[word] = self.n_words
             self.word2count[word] = 1
@@ -33,23 +33,21 @@ class Lang(object):
             self.word2count[word] += 1
 
 
-def unicodeToAscii(s):
+def unicode2ascii(s):
     return ''.join(
         c for c in unicodedata.normalize('NFD', s)
         if unicodedata.category(c) != 'Mn')
 
 
 # Lowercase, trim, and remove non-letter characters
-
-
-def normalizeString(s):
-    s = unicodeToAscii(s.lower().strip())
+def normalize_string(s):
+    s = unicode2ascii(s.lower().strip())
     s = re.sub(r"([.!?])", r" \1", s)
     s = re.sub(r"[^a-zA-Z.!?]+", r" ", s)
     return s
 
 
-def readLangs(lang1, lang2, reverse=False):
+def read_lang(lang1, lang2, reverse=False):
     print("Reading lines...")
 
     # Read the file and split into lines
@@ -57,7 +55,7 @@ def readLangs(lang1, lang2, reverse=False):
         read().strip().split('\n')
 
     # Split every line into pairs and normalize
-    pairs = [[normalizeString(s) for s in l.split('\t')] for l in lines]
+    pairs = [[normalize_string(s) for s in l.split('\t')] for l in lines]
 
     # Reverse pairs, make Lang instances
     if reverse:
@@ -76,59 +74,60 @@ eng_prefixes = ("i am ", "i m ", "he is", "he s ", "she is", "she s",
                 "they re ")
 
 
-def filterPair(p):
+def filter_pair(p):
     return len(p[0].split(' ')) < MAX_LENGTH and \
         len(p[1].split(' ')) < MAX_LENGTH and \
         p[1].startswith(eng_prefixes)
 
 
-def filterPairs(pairs):
-    return [pair for pair in pairs if filterPair(pair)]
+def filter_pairs(pairs):
+    return [pair for pair in pairs if filter_pair(pair)]
 
 
-def prepareData(lang1, lang2, reverse=False):
-    input_lang, output_lang, pairs = readLangs(lang1, lang2, reverse)
+def prepare_data(lang1, lang2, reverse=False):
+    input_lang, output_lang, pairs = read_lang(lang1, lang2, reverse)
     print("Read %s sentence pairs" % len(pairs))
-    pairs = filterPairs(pairs)
+    pairs = filter_pairs(pairs)
     print("Trimmed to %s sentence pairs" % len(pairs))
     print("Counting words...")
     for pair in pairs:
-        input_lang.addSentence(pair[0])
-        output_lang.addSentence(pair[1])
+        input_lang.add_sentence(pair[0])
+        output_lang.add_sentence(pair[1])
     print("Counted words:")
     print(input_lang.name, input_lang.n_words)
     print(output_lang.name, output_lang.n_words)
     print(random.choice(pairs))
+    print('-----------------------------')
     return input_lang, output_lang, pairs
 
 
-def indexesFromSentence(lang, sentence):
+def indexes_from_sentence(lang, sentence):
     return [lang.word2index[word] for word in sentence.split(' ')]
 
 
-def tensorFromSentence(lang, sentence):
-    indexes = indexesFromSentence(lang, sentence)
+def tensor_from_sentence(lang, sentence):
+    indexes = indexes_from_sentence(lang, sentence)
+    # add EOS
     indexes.append(EOS_token)
     result = torch.LongTensor(indexes)
     return result
 
 
-def tensorFromPair(input_lang, output_lang, pair):
-    input_tensor = tensorFromSentence(input_lang, pair[0])
-    target_tensor = tensorFromSentence(output_lang, pair[1])
+def tensor_from_pair(input_lang, output_lang, pair):
+    input_tensor = tensor_from_sentence(input_lang, pair[0])
+    target_tensor = tensor_from_sentence(output_lang, pair[1])
     return input_tensor, target_tensor
 
 
 class TextDataset(Dataset):
-    def __init__(self, dataload=prepareData, lang=['eng', 'fra']):
-        self.input_lang, self.output_lang, self.pairs = dataload(
+    def __init__(self, data_load=prepare_data, lang=['eng', 'fra']):
+        self.input_lang, self.output_lang, self.pairs = data_load(
             lang[0], lang[1], reverse=True)
         self.input_lang_words = self.input_lang.n_words
         self.output_lang_words = self.output_lang.n_words
 
     def __getitem__(self, index):
-        return tensorFromPair(self.input_lang, self.output_lang,
-                              self.pairs[index])
+        return tensor_from_pair(self.input_lang, self.output_lang, self.pairs[index])
 
     def __len__(self):
         return len(self.pairs)

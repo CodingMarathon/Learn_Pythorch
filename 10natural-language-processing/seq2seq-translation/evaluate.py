@@ -18,10 +18,10 @@ print('*' * 10)
 def evaluate(encoder, decoder, in_lang, max_length=MAX_LENGTH):
     if use_cuda:
         in_lang = in_lang.cuda()
-    input_variable = Variable(in_lang)
-    input_variable = input_variable.unsqueeze(0)
+    input_variable = Variable(in_lang)  # length
+    input_variable = input_variable.unsqueeze(0)  # 1, length
     input_length = input_variable.size(1)
-    encoder_hidden = encoder.initHidden()
+    encoder_hidden = encoder.init_hidden()
 
     encoder_outputs = Variable(torch.zeros(max_length, encoder.hidden_size))
     encoder_outputs = encoder_outputs.cuda() if use_cuda else encoder_outputs
@@ -29,7 +29,7 @@ def evaluate(encoder, decoder, in_lang, max_length=MAX_LENGTH):
     for ei in range(input_length):
         encoder_output, encoder_hidden = encoder(input_variable[:, ei],
                                                  encoder_hidden)
-        encoder_outputs[ei] = encoder_output[0][0]
+        encoder_outputs[ei] = encoder_output[0][0]  # max_length, hidden
 
     decoder_input = Variable(torch.LongTensor([[SOS_token]]))  # SOS
     decoder_input = decoder_input.cuda() if use_cuda else decoder_input
@@ -44,8 +44,8 @@ def evaluate(encoder, decoder, in_lang, max_length=MAX_LENGTH):
             decoder_output, decoder_hidden, decoder_attention = decoder(
                 decoder_input, decoder_hidden, encoder_outputs)
             decoder_attentions[di] = decoder_attention.data
-            topv, topi = decoder_output.data.topk(1)
-            ni = topi[0][0]
+            top_value, top_index = decoder_output.data.topk(1)
+            ni = top_index[0][0]
             if ni == EOS_token:
                 decoded_words.append('<EOS>')
                 break
@@ -58,8 +58,8 @@ def evaluate(encoder, decoder, in_lang, max_length=MAX_LENGTH):
         for di in range(max_length):
             decoder_output, decoder_hidden = decoder(decoder_input,
                                                      decoder_hidden)
-            topv, topi = decoder_output.data.topk(1)
-            ni = topi[0][0]
+            top_value, top_index = decoder_output.data.topk(1)
+            ni = top_index[0][0]
             if ni == EOS_token:
                 decoded_words.append('<EOS>')
                 break
@@ -76,18 +76,19 @@ def evaluate(encoder, decoder, in_lang, max_length=MAX_LENGTH):
 
 def evaluateRandomly(encoder, decoder, n=10):
     for i in range(n):
-        pair_idx = random.choice(list(range(len(lang_dataset))))
-        pair = lang_dataset.pairs[pair_idx]
-        in_lang, out_lang = lang_dataset[pair_idx]
-        print('>', pair[0])
-        print('=', pair[1])
+        pair_index = random.choice(list(range(len(lang_dataset))))
+        pair = lang_dataset.pairs[pair_index]
+        in_lang, out_lang = lang_dataset[pair_index]
+        print(in_lang)
+        print('>>', pair[0])
+        print('==', pair[1])
         if use_attn:
             output_words, attentions = evaluate(encoder, decoder, in_lang)
         else:
             output_words = evaluate(encoder, decoder, in_lang)
         output_sentence = ' '.join(output_words)
-        print('<', output_sentence)
-        print('')
+        print('<<', output_sentence)
+        print('-' * 20)
 
 
 input_size = lang_dataset.input_lang_words
@@ -112,7 +113,7 @@ evaluateRandomly(encoder, decoder)
 if use_attn:
     pair_idx = random.choice(list(range(len(lang_dataset))))
     pairs = lang_dataset.pairs[pair_idx]
-    print('>')
+    print('>>')
     print(pairs[0])
     in_lang, out_lang = lang_dataset[pair_idx]
     output_words, attentions = evaluate(encoder, decoder, in_lang)

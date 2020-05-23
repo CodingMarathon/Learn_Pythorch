@@ -14,11 +14,13 @@ SOS_token = 0
 EOS_token = 1
 MAX_LENGTH = 10
 lang_dataset = TextDataset()
+# batch_size = 1
 lang_dataloader = DataLoader(lang_dataset, shuffle=True)
-print()
 
+# input words num
 input_size = lang_dataset.input_lang_words
 hidden_size = 256
+# output words num
 output_size = lang_dataset.output_lang_words
 total_epoch = 20
 
@@ -33,7 +35,7 @@ if torch.cuda.is_available():
     attn_decoder = attn_decoder.cuda()
 
 
-def showPlot(points):
+def show_plot(points):
     plt.figure()
     x = np.arange(len(points))
     plt.plot(x, points)
@@ -41,7 +43,6 @@ def showPlot(points):
 
 
 def train(encoder, decoder, total_epoch, use_attn):
-
     param = list(encoder.parameters()) + list(decoder.parameters())
     optimizer = optim.Adam(param, lr=1e-3)
     criterion = nn.NLLLoss()
@@ -59,16 +60,15 @@ def train(encoder, decoder, total_epoch, use_attn):
             in_lang = Variable(in_lang)  # batch=1, length
             out_lang = Variable(out_lang)
 
-            encoder_outputs = Variable(
-                torch.zeros(MAX_LENGTH, encoder.hidden_size))
+            encoder_outputs = Variable(torch.zeros(MAX_LENGTH, encoder.hidden_size))
             if torch.cuda.is_available():
                 encoder_outputs = encoder_outputs.cuda()
-            encoder_hidden = encoder.initHidden()
+            encoder_hidden = encoder.init_hidden()
             for ei in range(in_lang.size(1)):
                 encoder_output, encoder_hidden = encoder(
-                    in_lang[:, ei], encoder_hidden)
-                encoder_outputs[ei] = encoder_output[0][0]
-
+                    in_lang[:, ei], encoder_hidden)   # (1, 1, hidden), (1, 1, hidden)
+                # print(encoder_output.size(), encoder_hidden.size())
+                encoder_outputs[ei] = encoder_output[0][0]  # seq_len, hidden
             decoder_input = Variable(torch.LongTensor([[SOS_token]]))
             if torch.cuda.is_available():
                 decoder_input = decoder_input.cuda()
@@ -79,9 +79,8 @@ def train(encoder, decoder, total_epoch, use_attn):
                     decoder_output, decoder_hidden, decoder_attention = attn_decoder(
                         decoder_input, decoder_hidden, encoder_outputs)
                     loss += criterion(decoder_output, out_lang[:, di])
-                    topv, topi = decoder_output.data.topk(1)
-                    ni = topi[0][0]
-
+                    top_value, top_index = decoder_output.data.topk(1)
+                    ni = top_index[0][0]
                     decoder_input = Variable(torch.LongTensor([[ni]]))
                     if torch.cuda.is_available():
                         decoder_input = decoder_input.cuda()
@@ -92,9 +91,8 @@ def train(encoder, decoder, total_epoch, use_attn):
                     decoder_output, decoder_hidden = decoder(
                         decoder_input, decoder_hidden)
                     loss += criterion(decoder_output, out_lang[:, di])
-                    topv, topi = decoder_output.data.topk(1)
-                    ni = topi[0][0]
-
+                    top_value, top_index = decoder_output.data.topk(1)
+                    ni = top_index[0][0]
                     decoder_input = Variable(torch.LongTensor([[ni]]))
                     if torch.cuda.is_available():
                         decoder_input = decoder_input.cuda()
@@ -103,9 +101,9 @@ def train(encoder, decoder, total_epoch, use_attn):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            running_loss += loss.data[0]
-            print_loss_total += loss.data[0]
-            total_loss += loss.data[0]
+            running_loss += loss.item()
+            print_loss_total += loss.item()
+            total_loss += loss.item()
             if (i + 1) % 5000 == 0:
                 print('{}/{}, Loss:{:.6f}'.format(
                     i + 1, len(lang_dataloader), running_loss / 5000))
@@ -117,8 +115,7 @@ def train(encoder, decoder, total_epoch, use_attn):
         during = time.time() - since
         print('Finish {}/{} , Loss:{:.6f}, Time:{:.0f}s'.format(
             epoch + 1, total_epoch, total_loss / len(lang_dataset), during))
-        print()
-    showPlot(plot_losses)
+    show_plot(plot_losses)
 
 
 if use_attn:
